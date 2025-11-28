@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>G서식 변신 미리보기 — 접기/펼치기 + 표 미리보기 (v6)</title>
+  <style>
+    :root{
+      --bg:#f7f7fb; --panel:#ffffff; --ink:#121317; --muted:#5e6675; --accent:#2f6bff;
+      --ok:#1e9e64; --warn:#b56200; --bad:#c93636; --border:#e6e7ef; --card:#ffffff;
+      --shadow:0 8px 20px rgba(34,43,64,.08);
+      --gothic: ui-sans-serif, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Apple SD Gothic Neo, Helvetica, Arial, sans-serif;
+      --serif: ui-serif, "Noto Serif KR", "Nanum Myeongjo", serif;
+      --navy:#0d2a4a; --sky:#e6f4ff; --sky-border:#cfe8ff;
+    }
+    [data-theme="dark"]{ --bg:#0b0c0f; --panel:#11131a; --ink:#e6e8ef; --muted:#a7adbf; --accent:#6aa6ff; --border:#232634; --card:#0f1116; --shadow:0 6px 18px rgba(0,0,0,.35) }
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--gothic)}
+    .app{display:grid;grid-template-rows:auto 1fr;height:100dvh}
+    header{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--border);box-shadow:var(--shadow)}
+    .bar{display:flex;gap:10px;align-items:center;padding:10px 14px;flex-wrap:wrap}
+    .bar h1{font-size:15px;margin:0}
+    .spacer{flex:1}
+    .btn{border:1px solid var(--border);background:var(--card);color:var(--ink);padding:7px 10px;border-radius:10px;font-size:12px;cursor:pointer;box-shadow:var(--shadow)}
+    .btn.primary{background:var(--accent);color:#fff;border-color:transparent}
+    .btn.small{padding:5px 8px;font-size:11px}
+
+    .main{display:grid;grid-template-columns:minmax(320px,42%) 1fr;height:100%}
+    @media (max-width:980px){.main{grid-template-columns:1fr}}
+
+    .left{border-right:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column}
+    .left .tools{display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
+    .pill{border:1px solid var(--border);background:var(--card);padding:4px 8px;border-radius:999px;font-size:11px;color:var(--muted)}
+    #editor{width:100%;height:100%;flex:1;padding:16px 18px;background:var(--card);color:var(--ink);border:none;outline:none;resize:none;line-height:1.55;font-size:14px;tab-size:2;white-space: pre-wrap; overflow-wrap:anywhere; word-break: break-word}
+
+    .right{display:grid;grid-template-rows:auto 1fr;min-height:0}
+    .preview-top{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--panel)}
+    #toc{font-size:12px;color:var(--muted);overflow:auto;white-space:nowrap}
+    #toc a{color:var(--muted);text-decoration:none;margin-right:10px}
+    #toc a:hover{color:var(--accent)}
+
+    #preview{overflow:auto;padding:18px}
+    details{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow)}
+    details+details{margin-top:14px}
+
+    summary{list-style:none;cursor:pointer;outline:none}
+    summary::-webkit-details-marker{display:none}
+
+    /* 제목 박스 + 요약줄(클릭영역) */
+    .chap summary{display:flex;align-items:center;gap:10px;padding:8px 10px 0}
+    .titleBox{flex:1;background:var(--sky);border:1px solid var(--sky-border);border-radius:12px;padding:12px 16px;text-align:center;font-family:var(--gothic);font-weight:700;font-size:20px}
+    .caret{width:18px; height:18px; display:inline-block; margin-left:6px; transform:rotate(90deg); transition:.15s ease; opacity:.75}
+    .caret::before{content:"▶"; display:block;}
+    details:not([open]) > summary .caret{transform:rotate(0deg); opacity:.6}
+
+    .inner{padding:12px 16px 16px}
+    .backgroundBox{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin:10px 0 10px;font-family:var(--gothic);font-size:16px;line-height:1.75;text-align:justify;text-justify:inter-word}
+    [data-theme="dark"] .backgroundBox{background:#14161d}
+    .backgroundBox p{margin:0 0 10px}
+
+    /* 소제목(요약줄 + 본문) */
+    .sub{border-style:dashed}
+    .sub .subhead{display:flex;align-items:center;gap:8px;padding:8px 6px 6px;cursor:pointer}
+    .navySquare{width:28px;height:28px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:18px;font-weight:700}
+    .spaceOne{width:0.6rem}
+    .subTitle{padding:4px 6px 3px;border-bottom:3px solid var(--navy);font-weight:700}
+    .sub .caret{transform:rotate(90deg)}
+    .sub:not([open]) > summary .caret{transform:rotate(0deg)}
+
+    /* 블록 공통 */
+    .block{display:flex;gap:10px;align-items:flex-start;padding:6px 8px;border-left:4px solid transparent;border-radius:10px;margin:8px 0}
+    .badge{display:inline-grid;place-items:center;width:1.4em;height:1.4em;border-radius:6px;font-weight:700}
+    .content{min-width:0}
+    .content p{margin:0 0 6px}
+
+    /* 네모 */
+    .block[data-type="네모"]{margin-left:0}
+    .block[data-type="네모"] .badge{font-size:16px;color:#2f6bff}
+    .block[data-type="네모"] .content{font-family:var(--gothic);font-size:16px;font-weight:700}
+    /* 원 */
+    .block[data-type="원"]{margin-left:1.2rem}
+    .block[data-type="원"] .badge{font-size:15px;color:#20c997}
+    .block[data-type="원"] .content{font-family:var(--serif);font-size:15px;line-height:1.75;text-align:justify}
+    /* 바 */
+    .block[data-type="바"]{margin-left:2.2rem}
+    .block[data-type="바"] .badge{font-size:15px;color:#12b886}
+    .block[data-type="바"] .content{font-family:var(--serif);font-size:15px;line-height:1.75;text-align:justify}
+    /* 당구장 */
+    .block[data-type="당구장"]{margin-left:3rem}
+    .block[data-type="당구장"] .badge{font-size:12px;color:#ffc107}
+    .block[data-type="당구장"] .content{font-family:var(--gothic);font-size:12px;line-height:1.6}
+    /* 별 */
+    .block[data-type="별"]{margin-left:3.8rem}
+    .block[data-type="별"] .badge{font-size:12px;color:#be4bdb}
+    .block[data-type="별"] .content{font-family:var(--gothic);font-size:12px;line-height:1.6}
+
+    .warn{background:#fff7e6;border:1px solid #ffe1a6;color:#7a5300;border-radius:12px;padding:10px 12px;display:none}
+    [data-theme="dark"] .warn{background:#2b210a;color:#ffe6a0;border-color:#5a3f08}
+
+    /* ====== 표 미리보기용 스타일 ====== */
+    .tableWrap{
+      margin:10px 0 16px;
+      overflow-x:auto;
+    }
+    .gtable{
+      width:100%;
+      border-collapse:collapse;
+      font-size:13px;
+      background:var(--card);
+    }
+    .gtable thead th{
+      background:var(--sky);
+      border:1px solid var(--border);
+      padding:6px 8px;
+      text-align:center;
+      font-weight:600;
+      white-space:nowrap;
+    }
+    .gtable tbody td{
+      border:1px solid var(--border);
+      padding:6px 8px;
+      vertical-align:top;
+    }
+    [data-theme="dark"] .gtable thead th{
+      background:#152135;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="bar">
+        <h1>G서식 변신 — 접기/펼치기 + 표 미리보기 (v6)</h1>
+        <span style="color:var(--muted);font-size:12px">왼쪽: 원본 텍스트 / 오른쪽: HWP 유사 미리보기 (장·소제목 + '표 :' 테이블)</span>
+        <div class="spacer"></div>
+        <button class="btn small" id="btnNormalize">토큰 정리</button>
+        <button class="btn small" id="btnSample">샘플</button>
+        <button class="btn small" id="btnClear">지우기</button>
+        <button class="btn small" id="btnCopyIn">입력 복사</button>
+        <button class="btn small" id="btnCopyOut">미리보기 복사</button>
+        <button class="btn small" id="btnPrint">인쇄/PDF</button>
+        <button class="btn small" id="btnTheme">라이트/다크</button>
+        <button class="btn small" id="btnCollapseCh">장 모두 접기</button>
+        <button class="btn small" id="btnExpandCh">장 모두 펴기</button>
+        <button class="btn small" id="btnCollapseSub">소제목 모두 접기</button>
+        <button class="btn small" id="btnExpandSub">소제목 모두 펴기</button>
+        <button class="btn small" id="btnWrap">소프트 줄바꿈 ON</button>
+      </div>
+    </header>
+
+    <div class="main">
+      <section class="left">
+        <div class="tools">
+          <span class="pill" id="statCh">Ch 0</span>
+          <span class="pill" id="statSub">Sub 0</span>
+          <span class="pill" id="statBlk">Blocks 0</span>
+        </div>
+        <textarea id="editor" wrap="soft" spellcheck="false" placeholder="여기에 '제목:/배경:/소제목:/네모:/원:/바:/당구장:/별:' 형식의 원본 텍스트와
+'표 : 구분 : 항목 : 주요내용 : 비고' 형식의 표 텍스트를 붙여넣으세요."></textarea>
+      </section>
+
+      <section class="right">
+        <div class="preview-top">
+          <div class="warn" id="warnBox"></div>
+          <div class="spacer"></div>
+          <nav id="toc"></nav>
+        </div>
+        <div id="preview"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+  const TOKENS = ["제목","배경","소제목","네모","원","바","당구장","별"];
+
+  const editor = document.getElementById('editor');
+  const preview = document.getElementById('preview');
+  const toc = document.getElementById('toc');
+  const warnBox = document.getElementById('warnBox');
+  const statCh = document.getElementById('statCh');
+  const statSub = document.getElementById('statSub');
+  const statBlk = document.getElementById('statBlk');
+
+  const defaultText = `제목: I. 사업 개요 및 추진 배경
+배경: 인문사회 분야 교원의 반복적인 연구·행정 업무 부담을 AI 기반 자동화 도구 도입을 통해 경감하고, 연구 생산성 및 교육의 질 제고를 목적으로 함
+
+소제목: 1. 사업의 정의 및 범위 설정
+네모: 본 사업은 인문사회계열 교원을 대상으로 AI 활용 역량 강화 및 HWP·PPT 등 주요 문서 작업의 자동화를 지원하는 것을 핵심으로 정의함
+원: 대상 집단 특성상 디지털 격차 및 AI 기술 수용성에 대한 고려가 필수적임
+원: 연구·강의 준비 외 행정 업무 비중이 높은 인문사회 분야의 특수성을 반영
+원: 단순 AI 툴 교육을 넘어, 실제 업무 과정에 즉시 적용 가능한 자동화 솔루션 제공에 중점
+바: 지원 대상: 인문사회대학 소속 전임교원 및 연구·수업 담당 조교
+바: 지원 범위: AI 기초 소양 교육, 문서 편집 자동화 매크로 개발·보급, 상시 기술 지원
+바: 협력 부서: 교육혁신원(주관), 정보통신처(인프라), 각 단과대학(수요 발굴)
+당구장: 사업 초기, 기술에 대한 심리적 저항감을 최소화하는 점진적 접근 전략 요구
+별: 관련 근거: 제4차 지능정보사회 종합계획(2023) 중 ‘전국민 AI 일상화’ 추진 과제
+
+네모: 아래는 '표 :' 문법으로 작성된 샘플 표입니다 (범정부오피스 마크다운 표 미리보기):
+
+표 : 구분 : 항목 : 주요내용 : 비고
+표 : 개요 : 교육목표 : 생성형 AI 프롬프트 엔지니어링 기초 실습 및 업무 효율성 제고 :
+표 : 대상 : 참석대상 : AI 활용 경험이 없는 6급 이하 실무자 40명 내외 : Zero-to-One 과정
+표 : 일정 : 일시/장소 : 2025. 11. XX.(금) 14:00~17:00 / 청사 전산교육장 :
+표 : 구성 : 교육방식 : 이론 30%, 실습 70% (보안 가이드라인 준수 포함) : 현업 즉시 적용
+표 : 행정 : 준비사항 : 개인 노트북 지참 필수 또는 PC실 확보, 사전 계정 생성 :
+표 : 근거 : 법적근거 : 「지능정보화 기본법」 제48조(정보격차해소 교육) 등 :
+`;
+
+  const debounce = (fn, ms=180) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); } };
+  const save = () => localStorage.setItem('gprev-input', editor.value);
+  const load = () => localStorage.getItem('gprev-input');
+  const escapeHTML = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+
+  function normalizeTokens(text){
+    let t = text.replace(/：/g, ':');
+    const re = new RegExp(`^(\\s*)(?:${TOKENS.join('|')})\\s*:\\s*`, 'gm');
+    t = t.replace(re, m=> m.replace(/\s*:\s*/, ': '));
+    const leading = new RegExp(`^\\s+(${TOKENS.join('|')})\\s*:\\s*`, 'gm');
+    t = t.replace(leading, (m, tok)=> `${tok}: `);
+    return t;
+  }
+
+  function paragraphs(html){
+    const parts = html.split(/\n\n+/);
+    return parts.map(p=>`<p>${p.replace(/\n/g,'<br>')}</p>`).join('');
+  }
+
+  // '표 :' 블록 → HTML 테이블
+  function makeTableHTML(rawLines){
+    if(!rawLines || !rawLines.length) return '';
+    const rows = rawLines.map(line=>{
+      return line.split(':').map(cell=>cell.trim());
+    });
+    const maxCols = rows.reduce((m,r)=>Math.max(m, r.length), 0);
+    const normalized = rows.map(r=>{
+      const copy = r.slice();
+      while(copy.length < maxCols) copy.push('');
+      return copy;
+    });
+    const [header, ...body] = normalized;
+    const esc = s => escapeHTML(s || '');
+    const headHtml = header.map(c=>`<th>${esc(c)}</th>`).join('');
+    const bodyHtml = body.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('');
+    return `<div class="tableWrap"><table class="gtable"><thead><tr>${headHtml}</tr></thead><tbody>${bodyHtml}</tbody></table></div>`;
+  }
+
+  // 텍스트 안에서 '표 :' 연속 라인 → 테이블, 나머지는 문단
+  function richTextWithTables(text){
+    if(!text) return '';
+    const lines = text.replace(/\r\n?/g, '\n').split('\n');
+    let buf = [];
+    let out = [];
+
+    const flushBuf = () => {
+      if(!buf.length) return;
+      const chunk = buf.join('\n');
+      out.push(paragraphs(escapeHTML(chunk)));
+      buf = [];
+    };
+
+    let i = 0;
+    const tableRe = /^\s*표\s*:\s*(.*)$/;
+
+    while(i < lines.length){
+      const line = lines[i];
+      const m = line.match(tableRe);
+      if(m){
+        flushBuf();
+        let tableLines = [];
+        while(i < lines.length){
+          const m2 = lines[i].match(tableRe);
+          if(!m2) break;
+          tableLines.push(m2[1] || '');
+          i++;
+        }
+        out.push(makeTableHTML(tableLines));
+      }else{
+        buf.push(line);
+        i++;
+      }
+    }
+    flushBuf();
+    return out.join('');
+  }
+
+  function parse(text){
+    const normalized = normalizeTokens(text);
+    const lines = normalized.replace(/\r\n?/g, '\n').split('\n');
+    let data = {chapters:[], warnings:[], counts:{chap:0, sub:0, blocks:0}};
+    let curChap=null, curSub=null, curTag=null, buf='';
+
+    const startChapterIfNeeded = () => {
+      if(!curChap){
+        curChap = { title:'제목 없음', background:'', subtopics:[] };
+        data.chapters.push(curChap); data.counts.chap++; curSub=null;
+        data.warnings.push('첫 장에 "제목:"이 없어 자동으로 "제목 없음" 장을 생성했습니다.');
+      }
+    };
+
+    const flush = () => {
+      if(!curTag) return;
+      const content = buf.trim();
+      if(!content){ curTag=null; buf=''; return; }
+      if(curTag === '배경'){
+        startChapterIfNeeded();
+        curChap.background = (curChap.background? curChap.background+"\n\n" : '') + content;
+      } else if(curTag === '소제목'){
+        startChapterIfNeeded();
+        const m = content.match(/^\s*(\d+)[\.|\)]\s*(.*)$/);
+        const display = m? m[2] : content;
+        const num = m? m[1] : null;
+        curSub = { title: display, numHint:num, blocks: [] };
+        curChap.subtopics.push(curSub); data.counts.sub++;
+      } else if(['네모','원','바','당구장','별'].includes(curTag)){
+        startChapterIfNeeded();
+        if(!curSub){
+          curSub = { title:'제목 없는 소제목', blocks:[] };
+          curChap.subtopics.push(curSub); data.counts.sub++;
+          data.warnings.push('소제목 없이 항목이 시작되어 기본 소제목을 생성했습니다.');
+        }
+        curSub.blocks.push({type:curTag, text:content}); data.counts.blocks++;
+      }
+      curTag=null; buf='';
+    };
+
+    for(const rawLine of lines){
+      const line = rawLine;
+      const m = line.match(/^\s*(제목|배경|소제목|네모|원|바|당구장|별)\s*[:：]\s*(.*)$/);
+      if(m){
+        flush();
+        const tag = m[1]; const first = m[2] || '';
+        if(tag === '제목'){
+          curChap = { title:first.trim()||'제목 없음', background:'', subtopics:[] };
+          data.chapters.push(curChap); data.counts.chap++; curSub=null; curTag=null; buf='';
+          continue;
+        }
+        startChapterIfNeeded(); curTag = tag; buf = first;
+      } else {
+        if(curTag){
+          buf += (buf?'\n':'') + line;
+        } else if(line.trim() !== ''){
+          const isTableLine = /^\s*표\s*:\s*/.test(line);
+          if(!isTableLine){
+            data.warnings.push(`토큰이 없는 줄이 있습니다: "${line.slice(0,32)}…"`);
+          }
+        }
+      }
+    }
+    flush();
+    return data;
+  }
+
+  function render(){
+    // 1) 현재 열림 상태 저장
+    const prevChapStates = Array.from(preview.querySelectorAll('details.chap')).map(d=>d.open);
+    const prevSubStates  = Array.from(preview.querySelectorAll('details.sub')).map(d=>d.open);
+
+    const data = parse(editor.value);
+    warnBox.style.display = data.warnings.length? 'block':'none';
+    warnBox.innerHTML = data.warnings.map(w=>`• ${escapeHTML(w)}`).join('<br>');
+    statCh.textContent = `Ch ${data.counts.chap}`;
+    statSub.textContent = `Sub ${data.counts.sub}`;
+    statBlk.textContent = `Blocks ${data.counts.blocks}`;
+    toc.innerHTML = data.chapters.map((c,i)=>`<a href="#ch-${i+1}">${escapeHTML(c.title||`Chapter ${i+1}`)}</a>`).join('');
+
+    let subIndex = 0; // 서브토픽 열림 상태 순서대로 매핑
+
+    preview.innerHTML = data.chapters.map((c,i)=>{
+      const chapOpen = (typeof prevChapStates[i] === 'boolean') ? prevChapStates[i] : true;
+      const chapOpenAttr = chapOpen ? ' open' : '';
+
+      const title = `<div class="titleBox">${escapeHTML(c.title||`Chapter ${i+1}`)}</div>`;
+      const bg = c.background
+        ? `<div class="backgroundBox">${richTextWithTables(c.background)}</div>`
+        : '';
+
+      const subs = c.subtopics.map((s,j)=>{
+        const shown = s.numHint || (j+1);
+        const subOpen = (typeof prevSubStates[subIndex] === 'boolean') ? prevSubStates[subIndex] : true;
+        const subOpenAttr = subOpen ? ' open' : '';
+        subIndex++;
+
+        const blocks = s.blocks.map(b=>{
+          let sym='■';
+          if(b.type==='원') sym='●';
+          if(b.type==='바') sym='-';
+          if(b.type==='당구장') sym='※';
+          if(b.type==='별') sym='*';
+          return `<div class="block" data-type="${b.type}">
+            <div class="badge">${sym}</div>
+            <div class="content">${richTextWithTables(b.text)}</div>
+          </div>`;
+        }).join('');
+
+        return `<details class="sub"${subOpenAttr}>
+          <summary class="subhead">
+            <div class="navySquare">${shown}</div>
+            <div class="spaceOne"></div>
+            <div class="subTitle">${escapeHTML(s.title||`소제목 ${j+1}`)}</div>
+            <span class="caret" aria-hidden="true"></span>
+          </summary>
+          <div class="inner">${blocks}</div>
+        </details>`;
+      }).join('');
+
+      return `<details class="chap" id="ch-${i+1}"${chapOpenAttr}>
+        <summary class="chapSummary">${title}<span class="caret" aria-hidden="true"></span></summary>
+        <div class="inner">${bg}${subs}</div>
+      </details>`;
+    }).join('');
+  }
+
+  // --- Buttons / global actions ---
+  document.getElementById('btnNormalize').onclick = () => {
+    editor.value = normalizeTokens(editor.value); save(); render();
+  };
+  document.getElementById('btnSample').onclick    = () => {
+    editor.value = defaultText; save(); render();
+  };
+  document.getElementById('btnClear').onclick     = () => {
+    editor.value = ''; save(); render();
+  };
+  document.getElementById('btnCopyIn').onclick    = async () => {
+    await navigator.clipboard.writeText(editor.value); alert('입력 텍스트 복사 완료');
+  };
+  document.getElementById('btnCopyOut').onclick   = async () => {
+    await navigator.clipboard.writeText(preview.innerText); alert('미리보기 텍스트 복사 완료');
+  };
+  document.getElementById('btnPrint').onclick     = () => window.print();
+  document.getElementById('btnTheme').onclick     = () => {
+    const root=document.documentElement;
+    const next=root.getAttribute('data-theme')==='light'?'dark':'light';
+    root.setAttribute('data-theme',next);
+    localStorage.setItem('gprev-theme',next);
+  };
+
+  document.getElementById('btnCollapseCh').onclick = () =>
+    document.querySelectorAll('#preview details.chap').forEach(d=>d.open=false);
+  document.getElementById('btnExpandCh').onclick   = () =>
+    document.querySelectorAll('#preview details.chap').forEach(d=>d.open=true);
+  document.getElementById('btnCollapseSub').onclick= () =>
+    document.querySelectorAll('#preview details.sub').forEach(d=>d.open=false);
+  document.getElementById('btnExpandSub').onclick  = () =>
+    document.querySelectorAll('#preview details.sub').forEach(d=>d.open=true);
+
+  // Shift+클릭 → 해당 장만 단독 표시
+  preview.addEventListener('click', (e)=>{
+    const sum = e.target.closest('summary.chapSummary');
+    if(sum && e.shiftKey){
+      const parent = sum.parentElement; // details.chap
+      document.querySelectorAll('#preview details.chap').forEach(d=> d.open = (d===parent));
+      e.preventDefault();
+    }
+  });
+
+  // TOC 점프 시 해당 장 자동 펼침
+  toc.addEventListener('click', (e)=>{
+    const a = e.target.closest('a[href^="#ch-"]');
+    if(!a) return; e.preventDefault();
+    const el = document.querySelector(a.getAttribute('href'));
+    if(el){ el.open = true; el.scrollIntoView({behavior:'smooth', block:'start'}); }
+  });
+
+  editor.addEventListener('input', debounce(()=>{ save(); render(); }, 120));
+
+  (function boot(){
+    document.documentElement.setAttribute('data-theme', localStorage.getItem('gprev-theme')||'light');
+    editor.value = load() ?? defaultText;
+    render();
+  })();
+
+  // --- Soft wrap toggle ---
+  const btnWrap = document.getElementById('btnWrap');
+  function applyWrap(state){
+    if(state==='on'){
+      editor.style.whiteSpace = 'pre-wrap';
+      editor.style.overflowWrap = 'anywhere';
+      editor.style.wordBreak   = 'break-word';
+      if(btnWrap) btnWrap.textContent = '소프트 줄바꿈 ON';
+    } else {
+      editor.style.whiteSpace = 'pre';
+      editor.style.overflowWrap = 'normal';
+      editor.style.wordBreak   = 'normal';
+      if(btnWrap) btnWrap.textContent = '소프트 줄바꿈 OFF';
+    }
+  }
+  const initWrap = localStorage.getItem('gprev-wrap') || 'on';
+  applyWrap(initWrap);
+  if(btnWrap){
+    btnWrap.onclick = () => {
+      const next = (localStorage.getItem('gprev-wrap')||'on')==='on'?'off':'on';
+      localStorage.setItem('gprev-wrap', next); applyWrap(next);
+    };
+  }
+</script>
+</body>
+</html>
